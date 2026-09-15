@@ -30,7 +30,7 @@ export function BrandLockup() {
       <BrandMark />
       <div className="leading-none">
         <div className="font-cond font-bold text-[17px] tracking-[0.01em] text-zinc-50">
-          AERO<span className="text-steel-400">TWIN</span>
+          GARUDA<span className="text-steel-400">TWIN</span>
         </div>
         <div className="font-mono text-2xs uppercase tracking-[0.16em] text-zinc-600 mt-[3px]">
           DRDO · ADE
