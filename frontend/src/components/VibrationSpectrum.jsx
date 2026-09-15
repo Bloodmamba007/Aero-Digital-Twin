@@ -1,105 +1,96 @@
 import React from 'react';
-import { Activity, AlertTriangle, Radio, BarChart3 } from 'lucide-react';
+import Sparkline from './Sparkline';
 
-export default function VibrationSpectrum({ telemetry }) {
-  const rmsG = telemetry?.vibration_rms_g || 1.25;
-  const spectrum = telemetry?.vibration_spectrum || {
-    harmonic_1x_g: 0.55,
-    harmonic_2x_g: 0.35,
-    high_freq_turb_g: 0.85,
-    spectral_bins: Array(32).fill(0.1)
-  };
+const BIN_HZ = 62.5;
 
+export default function VibrationSpectrum({ telemetry, history }) {
+  const rmsG = telemetry?.vibration_rms_g || 0;
+  const spectrum = telemetry?.vibration_spectrum || {};
   const bins = spectrum.spectral_bins || [];
-  const maxBin = Math.max(0.1, ...bins);
-  const isHighVib = rmsG > 3.0;
+  const rpm = telemetry?.rpm || 0;
+
+  const shaftHz = rpm / 60;
+  const peak = Math.max(0.5, ...bins);
+  const isHigh = rmsG > 3.0;
+  const isElevated = rmsG > 2.0;
+
+  const h1 = spectrum.harmonic_1x_g ?? 0;
+  const h2 = spectrum.harmonic_2x_g ?? 0;
+  const hT = spectrum.high_freq_turb_g ?? 0;
 
   return (
-    <div className="bg-tactical-900 border border-tactical-border rounded-xl p-4 shadow-xl flex flex-col justify-between">
-      {/* Title & Status */}
-      <div className="flex items-center justify-between pb-3 border-b border-tactical-border/80 mb-3">
-        <div className="flex items-center gap-2">
-          <Activity className="w-4 h-4 text-cyan-400" />
-          <h2 className="font-display font-bold text-sm tracking-wider uppercase text-slate-100">
-            Vibration FFT & Harmonic Spectrum
-          </h2>
-        </div>
-        <div className="flex items-center gap-2 font-mono-code text-xs">
-          <span className="text-slate-400">RMS ACCEL:</span>
-          <span className={`px-2 py-0.5 rounded font-bold border ${isHighVib ? 'bg-red-500/20 text-red-300 border-red-500 animate-pulse' : 'bg-slate-800 text-cyan-300 border-slate-700'}`}>
-            {rmsG.toFixed(2)} G
+    <section className="card p-4">
+      <div className="sec-head">
+        <h2 className="sec-title">Vibration Spectrum</h2>
+        <div className="flex items-center gap-2.5">
+          <Sparkline data={history.map((s) => s.vib)} color={isHigh ? '#d96b6b' : '#7aa2c4'} width={70} height={20} fill={false} />
+          <span className={`chip ${isHigh ? 'chip-crit' : isElevated ? 'chip-warn' : 'chip-ok'}`}>
+            {rmsG.toFixed(2)} G rms
           </span>
         </div>
       </div>
 
-      {/* FFT Waterfall / Spectral Bins Visualizer */}
-      <div className="bg-tactical-950/80 border border-slate-800 rounded-lg p-3 my-1">
-        <div className="flex justify-between items-center text-[10px] font-mono-code text-slate-500 mb-2">
-          <span>0 Hz (DC)</span>
-          <span>500 Hz [1X / 2X CRANK]</span>
-          <span>1000 Hz</span>
-          <span>2000 Hz [TURBO]</span>
-        </div>
-
-        {/* Dynamic Spectrum Bar Graph */}
-        <div className="h-28 flex items-end gap-1 w-full pt-2">
+      {/* FFT bars */}
+      <div className="relative">
+        <div className="h-24 flex items-end gap-[2px]">
           {bins.map((val, idx) => {
-            const heightPct = Math.min(100, (val / Math.max(2.5, maxBin)) * 100);
-            const freqHz = idx * 62.5;
-            const is1X = Math.abs(freqHz - (telemetry?.rpm || 4800) / 60) < 40;
-            const isTurbo = freqHz > 1400;
+            const freq = idx * BIN_HZ;
+            const is1X = Math.abs(freq - shaftHz) < BIN_HZ / 2;
+            const is2X = Math.abs(freq - shaftHz * 2) < BIN_HZ / 2;
+            const isTurbo = freq > 1400;
 
-            let barColor = 'bg-cyan-500/70 hover:bg-cyan-400';
-            if (is1X) barColor = 'bg-amber-400 shadow-md shadow-amber-900';
-            if (isTurbo && val > 1.0) barColor = 'bg-red-500 shadow-md shadow-red-900';
+            let bg = 'rgba(122,162,196,0.45)';
+            if (is1X || is2X) bg = '#d9a441';
+            if (isTurbo && val > 1.0) bg = '#d96b6b';
 
             return (
-              <div 
-                key={idx} 
-                className="flex-1 flex flex-col items-center group relative h-full justify-end cursor-pointer"
-                title={`${freqHz.toFixed(0)} Hz: ${val.toFixed(3)} G`}
-              >
-                <div 
-                  className={`w-full rounded-t-sm transition-all duration-150 ${barColor}`} 
-                  style={{ height: `${Math.max(4, heightPct)}%` }}
-                />
-              </div>
+              <div
+                key={idx}
+                className="flex-1 rounded-t-[1px] transition-all duration-200"
+                style={{ height: `${Math.max(2, (val / peak) * 100)}%`, background: bg }}
+                title={`${freq.toFixed(0)} Hz · ${val.toFixed(3)} G`}
+              />
             );
           })}
         </div>
 
-        {/* Frequency Axis Marker Line */}
-        <div className="border-t border-slate-800 mt-1 flex justify-between text-[9px] font-mono-code text-slate-600 pt-1">
-          <span>BIN 0</span>
-          <span>1X: {((telemetry?.rpm || 4800) / 60).toFixed(0)} Hz</span>
-          <span>2X: {(((telemetry?.rpm || 4800) / 60) * 2).toFixed(0)} Hz</span>
-          <span>32-BIN FFT</span>
+        {/* frequency axis */}
+        <div className="flex justify-between mt-1.5 pt-1.5 border-t border-white/[0.07] font-mono text-2xs text-zinc-600">
+          <span>0</span>
+          <span>500</span>
+          <span>1000</span>
+          <span>1500</span>
+          <span>2000 Hz</span>
         </div>
       </div>
 
-      {/* Harmonic Order Metric Badges */}
-      <div className="grid grid-cols-3 gap-2 mt-3 text-xs font-mono-code">
-        <div className="bg-slate-950/60 border border-slate-800 rounded p-2 text-center">
-          <span className="text-[10px] text-slate-500 block">1X CRANK BALANCE</span>
-          <span className={`font-bold ${spectrum.harmonic_1x_g > 1.2 ? 'text-amber-400' : 'text-slate-200'}`}>
-            {spectrum.harmonic_1x_g?.toFixed(2)} G
-          </span>
+      {/* Harmonic orders */}
+      <div className="mt-3 pt-3 border-t border-white/[0.06] grid grid-cols-3 gap-4">
+        <div>
+          <span className="label">1X shaft</span>
+          <div className="flex items-baseline mt-1">
+            <span className={`num-md ${h1 > 1.2 ? 'text-warn' : ''}`}>{h1.toFixed(2)}</span>
+            <span className="unit">G</span>
+          </div>
+          <span className="font-mono text-2xs text-zinc-600">{shaftHz.toFixed(0)} Hz</span>
         </div>
-
-        <div className="bg-slate-950/60 border border-slate-800 rounded p-2 text-center">
-          <span className="text-[10px] text-slate-500 block">2X RECIPROCATING</span>
-          <span className="font-bold text-slate-200">
-            {spectrum.harmonic_2x_g?.toFixed(2)} G
-          </span>
+        <div>
+          <span className="label">2X recip</span>
+          <div className="flex items-baseline mt-1">
+            <span className="num-md">{h2.toFixed(2)}</span>
+            <span className="unit">G</span>
+          </div>
+          <span className="font-mono text-2xs text-zinc-600">{(shaftHz * 2).toFixed(0)} Hz</span>
         </div>
-
-        <div className="bg-slate-950/60 border border-slate-800 rounded p-2 text-center">
-          <span className="text-[10px] text-slate-500 block">TURBO SHAFT MESH</span>
-          <span className={`font-bold ${spectrum.high_freq_turb_g > 1.5 ? 'text-red-400' : 'text-slate-200'}`}>
-            {spectrum.high_freq_turb_g?.toFixed(2)} G
-          </span>
+        <div>
+          <span className="label">Turbo mesh</span>
+          <div className="flex items-baseline mt-1">
+            <span className={`num-md ${hT > 1.5 ? 'text-crit' : ''}`}>{hT.toFixed(2)}</span>
+            <span className="unit">G</span>
+          </div>
+          <span className="font-mono text-2xs text-zinc-600">&gt;1.4 kHz</span>
         </div>
       </div>
-    </div>
+    </section>
   );
 }
