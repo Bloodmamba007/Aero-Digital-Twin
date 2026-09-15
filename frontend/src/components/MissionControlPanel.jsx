@@ -1,242 +1,179 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Play, 
-  Pause, 
-  RotateCcw, 
-  Sliders, 
-  Flame, 
-  Droplet, 
-  Wind, 
-  Radio, 
-  Activity, 
-  CheckCircle2,
-  AlertOctagon,
-  RefreshCw,
-  Compass
-} from 'lucide-react';
+import React, { useState } from 'react';
+import { Play, Square, RotateCcw } from 'lucide-react';
 
-export default function MissionControlPanel({ 
-  currentProfile, 
-  activeFaults, 
-  onSelectProfile, 
-  onInjectFault, 
+const PROFILES = [
+  { key: 'ISR_LOITER', label: 'ISR Loiter', sub: '15,000 ft · 74% pwr' },
+  { key: 'ALTITUDE_CLIMB', label: 'Tactical Climb', sub: '0 → 22,000 ft' },
+  { key: 'DESERT_HEAT_SOAK', label: 'Desert Soak', sub: 'Thar · +45 °C' },
+  { key: 'SNAP_THROTTLE', label: 'Snap Throttle', sub: '35% → 98% steps' },
+];
+
+export default function MissionControlPanel({
+  currentProfile,
+  activeFaults,
+  onSelectProfile,
+  onInjectFault,
   onClearFaults,
   replayState,
-  onReplayControl
+  onReplayControl,
 }) {
-  const [selectedSortie, setSelectedSortie] = useState("SORTIE_TAPAS_08_MISFIRE");
-  const [isReplaying, setIsReplaying] = useState(false);
+  const [selectedSortie, setSelectedSortie] = useState('SORTIE_TAPAS_08_MISFIRE');
+  const isReplaying = Boolean(replayState?.is_replay);
 
-  const profiles = [
-    { key: "ISR_LOITER", label: "ISR Loiter", sub: "15,000 ft Cruise", desc: "Long-endurance surveillance at 74% power" },
-    { key: "ALTITUDE_CLIMB", label: "Tactical Climb", sub: "0 to 22,000 ft", desc: "Aggressive climb with turbo boost" },
-    { key: "DESERT_HEAT_SOAK", label: "Desert Heat", sub: "Thar +45°C", desc: "Low-level loiter under extreme thermal stress" },
-    { key: "SNAP_THROTTLE", label: "Snap Throttle", sub: "Evasive Bursts", desc: "Rapid throttle transitions 35% -> 98%" }
+  const faults = [
+    {
+      id: 'misfire',
+      label: 'Cyl #3 misfire',
+      effect: 'EGT collapse · torsional jitter',
+      active: activeFaults?.misfire_cyl === 3,
+      toggle: () => onInjectFault('misfire_cyl', activeFaults?.misfire_cyl === 3 ? null : 3),
+    },
+    {
+      id: 'injector',
+      label: 'Injector #1 restriction',
+      effect: 'Lean burn > 875 °C',
+      active: activeFaults?.clogged_injector_cyl === 1,
+      toggle: () => onInjectFault('clogged_injector_cyl', activeFaults?.clogged_injector_cyl === 1 ? null : 1),
+    },
+    {
+      id: 'radiator',
+      label: 'Radiator restriction',
+      effect: 'Cooling loss · CHT > 140 °C',
+      active: activeFaults?.cooling_degradation_factor < 0.8,
+      toggle: () => onInjectFault('cooling_degradation_factor', activeFaults?.cooling_degradation_factor < 0.8 ? 1.0 : 0.45),
+    },
+    {
+      id: 'oil',
+      label: 'Oil scavenge leak',
+      effect: 'Pressure below 190 kPa',
+      active: activeFaults?.oil_leak_severity > 0,
+      toggle: () => onInjectFault('oil_leak_severity', activeFaults?.oil_leak_severity > 0 ? 0.0 : 0.75),
+    },
+    {
+      id: 'bearing',
+      label: 'Bearing degradation',
+      effect: 'Harmonic spike > 3.5 G',
+      active: activeFaults?.bearing_wear_severity > 0,
+      toggle: () => onInjectFault('bearing_wear_severity', activeFaults?.bearing_wear_severity > 0 ? 0.0 : 0.85),
+    },
+    {
+      id: 'wastegate',
+      label: 'Wastegate leak',
+      effect: 'Boost deficit at altitude',
+      active: Boolean(activeFaults?.turbo_wastegate_leak),
+      toggle: () => onInjectFault('turbo_wastegate_leak', !activeFaults?.turbo_wastegate_leak),
+    },
   ];
 
-  const handleStartReplay = (sortieId) => {
-    setIsReplaying(true);
-    onReplayControl({ action: "start", sortie_id: sortieId });
-  };
-
-  const handleStopReplay = () => {
-    setIsReplaying(false);
-    onReplayControl({ action: "stop" });
-  };
+  const activeCount = faults.filter((f) => f.active).length;
 
   return (
-    <div className="bg-tactical-900 border border-tactical-border rounded-xl p-4 shadow-xl flex flex-col justify-between">
-      {/* Header */}
-      <div className="flex items-center justify-between pb-3 border-b border-tactical-border/80 mb-3">
-        <div className="flex items-center gap-2">
-          <Sliders className="w-4 h-4 text-cyan-400" />
-          <h2 className="font-display font-bold text-sm tracking-wider uppercase text-slate-100">
-            Mission Profiles & Fault Injector
-          </h2>
-        </div>
-        <button
-          onClick={onClearFaults}
-          className="px-2 py-0.5 rounded bg-emerald-950/60 hover:bg-emerald-900 border border-emerald-700/80 text-[11px] font-mono-code text-emerald-300 flex items-center gap-1 transition-all"
-        >
-          <RotateCcw className="w-3 h-3" />
-          CLEAR ALL FAULTS
-        </button>
+    <section className="card p-4 flex flex-col">
+      <div className="sec-head">
+        <h2 className="sec-title">Simulation Console</h2>
+        {activeCount > 0 && (
+          <button onClick={onClearFaults} className="btn-quiet !text-crit !border-crit/30 hover:!bg-crit-dim">
+            <RotateCcw className="w-3 h-3" />
+            Clear {activeCount} fault{activeCount === 1 ? '' : 's'}
+          </button>
+        )}
       </div>
 
-      {/* 1. Operational Mission Profiles */}
+      {/* Mission regime */}
       <div className="mb-4">
-        <span className="text-xs font-mono-code text-slate-400 block mb-2">OPERATIONAL MISSION REGIME</span>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {profiles.map((p) => {
-            const isActive = currentProfile === p.key;
+        <span className="label block mb-2">Mission regime</span>
+        <div className="grid grid-cols-2 gap-2">
+          {PROFILES.map((p) => {
+            const active = currentProfile === p.key;
             return (
               <button
                 key={p.key}
                 onClick={() => onSelectProfile(p.key)}
-                className={`p-2 rounded-lg border text-left font-mono-code transition-all ${
-                  isActive
-                    ? 'bg-cyan-950/70 border-cyan-400 text-cyan-200 shadow-md shadow-cyan-950'
-                    : 'bg-tactical-950/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                className={`text-left px-3 py-2 rounded border transition-colors ${
+                  active
+                    ? 'bg-steel-500/15 border-steel-500/50'
+                    : 'bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.05] hover:border-white/[0.12]'
                 }`}
               >
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-xs">{p.label}</span>
-                  {isActive && <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />}
+                <div className="flex items-center gap-1.5">
+                  {active && <span className="w-1 h-1 rounded-full bg-steel-300" />}
+                  <span className={`font-cond font-semibold text-[13px] ${active ? 'text-steel-200' : 'text-zinc-300'}`}>
+                    {p.label}
+                  </span>
                 </div>
-                <span className="text-[10px] text-cyan-400/80 block mt-0.5">{p.sub}</span>
-                <span className="text-[9px] text-slate-500 block line-clamp-1 mt-1">{p.desc}</span>
+                <span className="font-mono text-2xs text-zinc-600 block mt-0.5">{p.sub}</span>
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* 2. Interactive Fault Injection Deck */}
+      {/* Fault injection */}
       <div className="mb-4">
-        <span className="text-xs font-mono-code text-slate-400 block mb-2">IN-FLIGHT ANOMALY & FAULT INJECTION DECK</span>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs font-mono-code">
-          
-          {/* Misfire Cylinder 3 */}
-          <button
-            onClick={() => onInjectFault("misfire_cyl", activeFaults?.misfire_cyl === 3 ? null : 3)}
-            className={`p-2.5 rounded-lg border flex flex-col justify-between text-left transition-all ${
-              activeFaults?.misfire_cyl === 3
-                ? 'bg-red-950/60 border-red-500 text-red-300 shadow-md shadow-red-950'
-                : 'bg-tactical-950/60 border-slate-800 text-slate-300 hover:border-slate-700'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-bold">CYL #3 MISFIRE</span>
-              <Flame className={`w-3.5 h-3.5 ${activeFaults?.misfire_cyl === 3 ? 'text-red-400' : 'text-slate-500'}`} />
-            </div>
-            <span className="text-[10px] text-slate-500 mt-1">EGT drop + torsional wobble</span>
-          </button>
+        <span className="label block mb-2">Fault injection</span>
+        <div className="row-div">
+          {faults.map((f) => (
+            <button
+              key={f.id}
+              onClick={f.toggle}
+              className="w-full flex items-center justify-between gap-3 py-2 px-1 text-left group hover:bg-white/[0.025] transition-colors rounded"
+            >
+              <div className="min-w-0">
+                <span className={`text-xs block ${f.active ? 'text-crit font-medium' : 'text-zinc-300'}`}>
+                  {f.label}
+                </span>
+                <span className="font-mono text-2xs text-zinc-600">{f.effect}</span>
+              </div>
 
-          {/* Clogged Fuel Injector (Lean Spike) */}
-          <button
-            onClick={() => onInjectFault("clogged_injector_cyl", activeFaults?.clogged_injector_cyl === 1 ? null : 1)}
-            className={`p-2.5 rounded-lg border flex flex-col justify-between text-left transition-all ${
-              activeFaults?.clogged_injector_cyl === 1
-                ? 'bg-amber-950/60 border-amber-500 text-amber-300 shadow-md shadow-amber-950'
-                : 'bg-tactical-950/60 border-slate-800 text-slate-300 hover:border-slate-700'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-bold">INJECTOR #1 RESTRICTION</span>
-              <AlertOctagon className={`w-3.5 h-3.5 ${activeFaults?.clogged_injector_cyl === 1 ? 'text-amber-400' : 'text-slate-500'}`} />
-            </div>
-            <span className="text-[10px] text-slate-500 mt-1">Severe lean burn &gt;875°C</span>
-          </button>
-
-          {/* Cooling Degradation */}
-          <button
-            onClick={() => onInjectFault("cooling_degradation_factor", activeFaults?.cooling_degradation_factor < 0.8 ? 1.0 : 0.45)}
-            className={`p-2.5 rounded-lg border flex flex-col justify-between text-left transition-all ${
-              activeFaults?.cooling_degradation_factor < 0.8
-                ? 'bg-red-950/60 border-red-500 text-red-300 shadow-md shadow-red-950'
-                : 'bg-tactical-950/60 border-slate-800 text-slate-300 hover:border-slate-700'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-bold">RADIATOR CORE RESTRICTION</span>
-              <Wind className={`w-3.5 h-3.5 ${activeFaults?.cooling_degradation_factor < 0.8 ? 'text-red-400' : 'text-slate-500'}`} />
-            </div>
-            <span className="text-[10px] text-slate-500 mt-1">Cooling loss &gt;140°C CHT</span>
-          </button>
-
-          {/* Oil Pressure Leak */}
-          <button
-            onClick={() => onInjectFault("oil_leak_severity", activeFaults?.oil_leak_severity > 0 ? 0.0 : 0.75)}
-            className={`p-2.5 rounded-lg border flex flex-col justify-between text-left transition-all ${
-              activeFaults?.oil_leak_severity > 0
-                ? 'bg-red-950/60 border-red-500 text-red-300 shadow-md shadow-red-950'
-                : 'bg-tactical-950/60 border-slate-800 text-slate-300 hover:border-slate-700'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-bold">OIL SCAVENGE LINE LEAK</span>
-              <Droplet className={`w-3.5 h-3.5 ${activeFaults?.oil_leak_severity > 0 ? 'text-red-400' : 'text-slate-500'}`} />
-            </div>
-            <span className="text-[10px] text-slate-500 mt-1">Pressure drops below 190 kPa</span>
-          </button>
-
-          {/* Crankshaft Bearing Wear (Vibration) */}
-          <button
-            onClick={() => onInjectFault("bearing_wear_severity", activeFaults?.bearing_wear_severity > 0 ? 0.0 : 0.85)}
-            className={`p-2.5 rounded-lg border flex flex-col justify-between text-left transition-all ${
-              activeFaults?.bearing_wear_severity > 0
-                ? 'bg-amber-950/60 border-amber-500 text-amber-300 shadow-md shadow-amber-950'
-                : 'bg-tactical-950/60 border-slate-800 text-slate-300 hover:border-slate-700'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-bold">BEARING DEGRADATION</span>
-              <Activity className={`w-3.5 h-3.5 ${activeFaults?.bearing_wear_severity > 0 ? 'text-amber-400' : 'text-slate-500'}`} />
-            </div>
-            <span className="text-[10px] text-slate-500 mt-1">Harmonic vib spike &gt;3.5 G</span>
-          </button>
-
-          {/* Turbo Wastegate Leak */}
-          <button
-            onClick={() => onInjectFault("turbo_wastegate_leak", !activeFaults?.turbo_wastegate_leak)}
-            className={`p-2.5 rounded-lg border flex flex-col justify-between text-left transition-all ${
-              activeFaults?.turbo_wastegate_leak
-                ? 'bg-amber-950/60 border-amber-500 text-amber-300 shadow-md shadow-amber-950'
-                : 'bg-tactical-950/60 border-slate-800 text-slate-300 hover:border-slate-700'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-bold">TURBO WASTEGATE LEAK</span>
-              <Wind className={`w-3.5 h-3.5 ${activeFaults?.turbo_wastegate_leak ? 'text-amber-400' : 'text-slate-500'}`} />
-            </div>
-            <span className="text-[10px] text-slate-500 mt-1">Boost deficit at high alt</span>
-          </button>
-
+              {/* switch */}
+              <span
+                className={`relative w-8 h-[18px] rounded-full flex-shrink-0 transition-colors ${
+                  f.active ? 'bg-crit/70' : 'bg-white/[0.10] group-hover:bg-white/[0.16]'
+                }`}
+              >
+                <span
+                  className={`absolute top-[3px] w-3 h-3 rounded-full bg-zinc-100 transition-all ${
+                    f.active ? 'left-[17px]' : 'left-[3px]'
+                  }`}
+                />
+              </span>
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* 3. Mission Replay & Flight Data Recorder Controls */}
-      <div className="bg-tactical-950/80 border border-slate-800 rounded-lg p-3">
-        <div className="flex items-center justify-between text-xs font-mono-code mb-2">
-          <span className="text-slate-400 flex items-center gap-1.5">
-            <Radio className="w-3.5 h-3.5 text-purple-400" />
-            HISTORICAL MISSION SORTIE REPLAY (FDR)
-          </span>
-          <span className="text-purple-400 font-semibold">
-            {isReplaying ? 'PLAYBACK SYNCHRONIZED' : 'STANDBY'}
+      {/* Replay */}
+      <div className="mt-auto pt-3 border-t border-white/[0.06]">
+        <div className="flex items-center justify-between mb-2">
+          <span className="label">Flight data recorder</span>
+          <span className={`font-mono text-2xs uppercase tracking-[0.1em] ${isReplaying ? 'text-steel-300' : 'text-zinc-600'}`}>
+            {isReplaying ? 'Playback' : 'Standby'}
           </span>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <select 
+        <div className="flex items-center gap-2">
+          <select
             value={selectedSortie}
             onChange={(e) => setSelectedSortie(e.target.value)}
-            className="flex-1 bg-slate-900 border border-slate-700 text-slate-200 text-xs font-mono-code rounded px-2.5 py-1.5 outline-none focus:border-cyan-500"
+            className="input flex-1 min-w-0"
           >
-            <option value="SORTIE_TAPAS_07_NOMINAL">TAPAS Sortie #104 - Nominal ISR Loiter (Pokhran)</option>
-            <option value="SORTIE_TAPAS_08_MISFIRE">TAPAS Sortie #108 - Cyl #3 Ignition Misfire Incident</option>
+            <option value="SORTIE_TAPAS_07_NOMINAL">Sortie #104 — nominal ISR loiter (Pokhran)</option>
+            <option value="SORTIE_TAPAS_08_MISFIRE">Sortie #108 — Cyl #3 ignition misfire</option>
           </select>
 
           {!isReplaying ? (
-            <button
-              onClick={() => handleStartReplay(selectedSortie)}
-              className="px-3 py-1.5 rounded bg-purple-600 hover:bg-purple-500 text-white font-mono-code text-xs flex items-center gap-1.5 transition-all"
-            >
-              <Play className="w-3.5 h-3.5 fill-current" />
-              <span>Replay Sortie</span>
+            <button onClick={() => onReplayControl({ action: 'start', sortie_id: selectedSortie })} className="btn-accent flex-shrink-0">
+              <Play className="w-3 h-3 fill-current" />
+              Replay
             </button>
           ) : (
-            <button
-              onClick={handleStopReplay}
-              className="px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-purple-300 border border-purple-500 font-mono-code text-xs flex items-center gap-1.5 transition-all"
-            >
-              <Pause className="w-3.5 h-3.5" />
-              <span>Stop Replay</span>
+            <button onClick={() => onReplayControl({ action: 'stop' })} className="btn-quiet flex-shrink-0">
+              <Square className="w-3 h-3 fill-current" />
+              Stop
             </button>
           )}
         </div>
       </div>
-
-    </div>
+    </section>
   );
 }
