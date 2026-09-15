@@ -262,7 +262,7 @@ export default function App() {
       <footer className="border-t border-white/[0.06] mt-2">
         <div className="max-w-[1800px] mx-auto px-6 py-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-1.5">
           <span className="font-mono text-2xs uppercase tracking-[0.1em] text-zinc-600">
-            Aeronautical Development Establishment · Digital Twin Diagnostic Core v1.0
+            Aeronautical Development Establishment · Garuda Twin Diagnostic Core v1.0
           </span>
           <div className="flex items-center gap-x-5 gap-y-1 flex-wrap font-mono text-2xs uppercase tracking-[0.1em] text-zinc-600">
             <span>Zero-D MVEM</span>
